@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Base colors - Industrial theme */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary - Professional Blue theme */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Slate for professional feel */
+    --secondary: 215 20% 65%;
+    --secondary-foreground: 222 47% 11%;
+
+    /* Muted - Lighter slate */
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent - Light blue */
+    --accent: 217 91% 95%;
+    --accent-foreground: 217 91% 20%;
+
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders and inputs */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 217 91% 60%;
+
+    /* Custom properties for booking statuses */
+    --status-pending: 38 92% 50%;
+    --status-approved: 142 76% 36%;
+    --status-rejected: 0 84% 60%;
+    --status-rescheduled: 217 91% 60%;
+    --status-cancelled: 215 16% 47%;
+    --status-completed: 215 20% 65%;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 15%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 15%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 25% 27%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 215 25% 27%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 91% 95%;
+    --accent-foreground: 217 91% 20%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 25% 27%;
+    --input: 215 25% 27%;
+    --ring: 217 91% 60%;
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 25% 27%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 215 25% 27%;
+    --sidebar-ring: 217 91% 60%;
+
+    --status-pending: 38 92% 50%;
+    --status-approved: 142 76% 36%;
+    --status-rejected: 0 84% 60%;
+    --status-rescheduled: 217 91% 60%;
+    --status-cancelled: 215 16% 47%;
+    --status-completed: 215 20% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
