@@ -1,13 +1,24 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { format, startOfDay, addMinutes, setHours, setMinutes, parseISO, isWithinInterval, startOfWeek, endOfWeek, addWeeks, subWeeks, getWeek, getDay } from "date-fns";
-import { nb } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { BookingDialog } from "./BookingDialog";
 import { BookingManagement } from "./BookingManagement";
+import {
+  CalendarHeader,
+  ResourceSelector,
+  WeekSelector,
+  ViewControls,
+  DailyView,
+  WeeklyView,
+  PaginationControls,
+} from "./booking-calendar";
+import { useCalendarState } from "@/hooks/useCalendarState";
+import { useBookingData } from "@/hooks/useBookingData";
+import { isWithinWorkingHours, getBookingAtTime, getWorkingHoursForDate } from "@/lib/calendarUtils";
+import { setMinutes, setHours, addMinutes, addDays } from "date-fns";
+import { toast } from "sonner";
+import { Calendar, CalendarDays, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Gate {
   id: string;
@@ -39,6 +50,10 @@ interface Booking {
   created_by: string;
   project_id: string;
   gates: Gate;
+  project?: {
+    address?: string;
+    number?: string;
+  } | null;
 }
 
 interface ElevatorBooking {
@@ -76,278 +91,68 @@ interface BookingCalendarProps {
 }
 
 export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChange, selectedGate, onGateChange }: BookingCalendarProps) => {
-  const [internalSelectedDate, setInternalSelectedDate] = useState<Date>(selectedDate || new Date());
-  const currentSelectedDate = selectedDate || internalSelectedDate;
-  const [currentWeek, setCurrentWeek] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 })); // Start on Monday
-  const [gates, setGates] = useState<Gate[]>([]);
-  const [elevators, setElevators] = useState<Elevator[]>([]);
-  const [selectedElevator, setSelectedElevator] = useState<string | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [elevatorBookings, setElevatorBookings] = useState<ElevatorBooking[]>([]);
-  const [workingHours, setWorkingHours] = useState<Record<string, WorkingHours>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [dragStart, setDragStart] = useState<{ time: Date; y: number } | null>(null);
+  // Use custom hooks for state management
+  const calendarState = useCalendarState({ selectedDate, onDateChange, selectedGate, onGateChange });
+  const bookingData = useBookingData({
+    projectId,
+    currentSelectedDate: calendarState.currentSelectedDate,
+    calendarView: calendarState.calendarView
+  });
+
+  // Local state for UI interactions
+  const [dragStart, setDragStart] = useState<{ time: Date; y: number; resourceId: string; isElevator: boolean } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ time: Date; y: number } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [selectedElevatorBooking, setSelectedElevatorBooking] = useState<ElevatorBooking | null>(null);
   const [isManagementOpen, setIsManagementOpen] = useState(false);
   const [editBooking, setEditBooking] = useState<Booking | ElevatorBooking | null>(null);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchGates();
-    fetchElevators();
-    fetchProjectWorkingHours();
-    fetchCurrentUser();
-  }, [projectId]);
+    // Fetch initial data using the hooks
+    const fetchInitialData = async () => {
+      try {
+        // Fetch gates
+        const { data: gatesData, error: gatesError } = await supabase
+          .from("gates")
+          .select("*")
+          .eq("project_id", projectId)
+          .eq("is_active", true)
+          .order("display_order");
 
-  useEffect(() => {
-    if (elevators.length > 0) {
-      fetchElevatorBookings();
-    }
-  }, [elevators]);
-
-  useEffect(() => {
-    if (currentSelectedDate && projectId) {
-      fetchBookings();
-      fetchElevatorBookings();
-    }
-  }, [currentSelectedDate, projectId]);
-
-  useEffect(() => {
-    // Update currentWeek when selectedDate changes externally
-    if (selectedDate) {
-      const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-      setCurrentWeek(weekStart);
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("bookings-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "bookings",
-          filter: `project_id=eq.${projectId}`,
-        },
-        () => {
-          fetchBookings();
+        if (!gatesError) {
+          calendarState.setGates(gatesData || []);
         }
-      )
-      .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
+        // Fetch elevators
+        const { data: elevatorsData, error: elevatorsError } = await supabase
+          .from("elevators")
+          .select("*")
+          .eq("project_id", projectId)
+          .eq("is_active", true)
+          .order("display_order");
+
+        if (!elevatorsError) {
+          calendarState.setElevators(elevatorsData || []);
+        }
+      } catch (error) {
+        console.error("Error fetching initial data:", error);
+      }
     };
+
+    fetchInitialData();
   }, [projectId]);
 
-  const fetchProjectWorkingHours = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("working_hours")
-        .eq("id", projectId)
-        .single();
+  // Data fetching is now handled by useBookingData hook
 
-      if (error) throw error;
-      setWorkingHours((data?.working_hours as unknown as Record<string, WorkingHours>) || {});
-    } catch (error) {
-      console.error("Error fetching working hours:", error);
-    }
-  };
+  // Utility functions are now in calendarUtils.ts
 
-  const fetchCurrentUser = async () => {
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData.user) {
-        setCurrentUser(userData.user.id);
-      }
-    } catch (error) {
-      console.error("Error fetching current user:", error);
-    }
-  };
+  // Booking lookup is now in calendarUtils.ts
 
-  const fetchGates = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("gates")
-        .select("*")
-        .eq("project_id", projectId)
-        .eq("is_active", true)
-        .order("display_order");
+  const handleMouseDown = (time: Date, e: React.MouseEvent, resourceId: string, isElevator: boolean) => {
+    if (!resourceId) return;
 
-      if (error) throw error;
-      setGates(data || []);
-    } catch (error: any) {
-      console.error("Error fetching gates:", error);
-      toast.error("Kunne ikke hente porter");
-    }
-  };
-
-  const fetchElevators = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("elevators")
-        .select("*")
-        .eq("project_id", projectId)
-        .eq("is_active", true)
-        .order("display_order");
-
-      if (error) {
-        console.error("Error fetching elevators:", error);
-        setElevators([]);
-        return;
-      }
-
-      console.log("Elevators fetched:", data); // Debug log
-      setElevators(data || []);
-    } catch (error: any) {
-      console.error("Error fetching elevators:", error);
-      setElevators([]);
-    }
-  };
-
-  const fetchElevatorBookings = async () => {
-    if (!currentSelectedDate || !projectId || elevators.length === 0) {
-      setElevatorBookings([]);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const startOfSelectedDay = startOfDay(currentSelectedDate);
-      const endOfSelectedDay = addMinutes(startOfSelectedDay, 24 * 60);
-
-      const { data, error } = await supabase
-        .from("elevator_bookings")
-        .select(`
-          *,
-          elevators (
-            id,
-            name,
-            description,
-            capacity,
-            floors_served
-          )
-        `)
-        .eq("project_id", projectId)
-        .gte("start_time", startOfSelectedDay.toISOString())
-        .lt("start_time", endOfSelectedDay.toISOString())
-        .order("start_time");
-
-      if (error) throw error;
-      setElevatorBookings(data || []);
-    } catch (error: any) {
-      console.error("Error fetching elevator bookings:", error);
-      // Don't show error toast if no elevator_bookings table exists yet - this is normal
-      if (error.code !== 'PGRST116') {
-        toast.error("Kunne ikke hente heisbookinger");
-      }
-      setElevatorBookings([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchBookings = async () => {
-    if (!currentSelectedDate || !projectId) {
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const startOfSelectedDay = startOfDay(currentSelectedDate);
-      const endOfSelectedDay = addMinutes(startOfSelectedDay, 24 * 60);
-
-      const { data, error } = await supabase
-        .from("bookings")
-        .select(`
-          *,
-          gates (
-            id,
-            name,
-            description
-          )
-        `)
-        .eq("project_id", projectId)
-        .gte("start_time", startOfSelectedDay.toISOString())
-        .lt("start_time", endOfSelectedDay.toISOString())
-        .order("start_time");
-
-      if (error) throw error;
-      setBookings(data || []);
-    } catch (error: any) {
-      console.error("Error fetching bookings:", error);
-      toast.error("Kunne ikke hente bookinger");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getDayOfWeek = (date: Date) => {
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    return days[date.getDay()];
-  };
-
-  const getWorkingHoursForDate = (date: Date) => {
-    const dayOfWeek = getDayOfWeek(currentSelectedDate);
-    return workingHours[dayOfWeek] || { start: '07:00', end: '15:30', enabled: true };
-  };
-
-  const isWithinWorkingHours = (time: Date) => {
-    const hours = getWorkingHoursForDate(time);
-    if (!hours.enabled) return false;
-
-    const [startHour, startMin] = hours.start.split(':').map(Number);
-    const [endHour, endMin] = hours.end.split(':').map(Number);
-
-    const startTime = setMinutes(setHours(time, startHour), startMin);
-    const endTime = setMinutes(setHours(time, endHour), endMin);
-
-    return isWithinInterval(time, { start: startTime, end: endTime });
-  };
-
-  const generateTimeSlots = () => {
-    const slots = [];
-    const start = startOfDay(currentSelectedDate);
-    // Generate slots from 04:00 to 21:00 (18 hours = 72 slots of 15 minutes each)
-    for (let i = 0; i < 18 * 4; i++) {
-      slots.push(addMinutes(startOfDay(currentSelectedDate), i * 15 + 4 * 60)); // Start from 04:00
-    }
-    return slots;
-  };
-
-  const timeSlots = generateTimeSlots();
-  const offsetMinutes = 4 * 60; // Minutes from 00:00 to 04:00
-
-  const getBookingAtTime = (resourceId: string, time: Date, isElevator: boolean = false) => {
-    if (isElevator) {
-      return elevatorBookings.find((booking) => {
-        if (booking.elevator_id !== resourceId) return false;
-        const bookingStart = new Date(booking.start_time);
-        const bookingEnd = new Date(booking.end_time);
-        return time >= bookingStart && time < bookingEnd;
-      });
-    } else {
-      return bookings.find((booking) => {
-        if (booking.gate_id !== resourceId) return false;
-        const bookingStart = new Date(booking.start_time);
-        const bookingEnd = new Date(booking.end_time);
-        return time >= bookingStart && time < bookingEnd;
-      });
-    }
-  };
-
-  const handleMouseDown = (time: Date, e: React.MouseEvent) => {
-    const currentResource = selectedGate || selectedElevator;
-    if (!currentResource) return;
-
-    const isElevator = !!selectedElevator;
-    const booking = getBookingAtTime(currentResource, time, isElevator);
+    const booking = getBookingAtTime(resourceId, time, isElevator, bookingData.bookings, bookingData.elevatorBookings) as Booking | ElevatorBooking | undefined;
     if (booking) {
       if (isElevator) {
         setSelectedElevatorBooking(booking as ElevatorBooking);
@@ -357,7 +162,7 @@ export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChang
       setIsManagementOpen(true);
       return;
     }
-    setDragStart({ time, y: e.clientY });
+    setDragStart({ time, y: e.clientY, resourceId, isElevator });
     setDragEnd({ time, y: e.clientY });
   };
 
@@ -372,7 +177,15 @@ export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChang
     const startTime = setMinutes(setHours(now, now.getHours() + 1), 0); // Next hour
     const endTime = addMinutes(startTime, 15); // 15 minutes later
 
-    setDragStart({ time: startTime, y: 0 });
+    const resourceId = calendarState.displayResources.length > 0 ? calendarState.displayResources[0].id : null;
+    const isElevator = calendarState.displayResources.length > 0 ? calendarState.displayResources[0].type === 'elevator' : false;
+
+    if (!resourceId) {
+        toast.error("Ingen ressurser synlige for ny booking");
+        return;
+    }
+
+    setDragStart({ time: startTime, y: 0, resourceId, isElevator });
     setDragEnd({ time: endTime, y: 0 });
     setIsDialogOpen(true);
   };
@@ -383,8 +196,7 @@ export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChang
   };
 
   const handleMouseUp = () => {
-    const currentResource = selectedGate || selectedElevator;
-    if (dragStart && dragEnd && currentResource) {
+    if (dragStart && dragEnd) {
       let startTime = dragStart.time < dragEnd.time ? dragStart.time : dragEnd.time;
       let endTime = dragStart.time < dragEnd.time ? dragEnd.time : dragStart.time;
 
@@ -406,305 +218,268 @@ export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChang
     }
   };
 
-  const getStatusColor = (booking: Booking) => {
-    if (booking.requires_approval) {
-      return "bg-orange-500/20 border-orange-500";
+  // Event handlers using the hooks
+  const handleNewBookingFromButton = () => {
+    const resourceToSelect = calendarState.displayResources[0];
+    if (!resourceToSelect) {
+        toast.error("Ingen porter eller heiser tilgjengelig for booking");
+        return;
     }
-    switch (booking.status) {
-      case "approved":
-        return "bg-green-500/20 border-green-500";
-      case "pending":
-        return "bg-yellow-500/20 border-yellow-500";
-      case "rejected":
-        return "bg-red-500/20 border-red-500";
-      default:
-        return "bg-gray-500/20 border-gray-500";
+
+    // Ensure the resource is selected in the UI state if it wasn't already (e.g., if we switch view mode)
+    if (resourceToSelect.type === 'gate' && !calendarState.activeGateIds.includes(resourceToSelect.id)) {
+        calendarState.setViewMode('gates');
+        calendarState.setActiveGateIds([resourceToSelect.id]);
+        calendarState.setActiveElevatorIds([]);
+        calendarState.setSelectedElevator(null);
+    } else if (resourceToSelect.type === 'elevator' && !calendarState.activeElevatorIds.includes(resourceToSelect.id)) {
+        calendarState.setViewMode('elevators');
+        calendarState.setActiveElevatorIds([resourceToSelect.id]);
+        calendarState.setActiveGateIds([]);
+        onGateChange?.(null);
     }
+
+    handleNewBooking();
   };
 
-  const navigateWeek = (direction: 'prev' | 'next') => {
-    const newWeek = direction === 'next' ? addWeeks(currentWeek, 1) : subWeeks(currentWeek, 1);
-    setCurrentWeek(newWeek);
-
-    // Set selected date to the first day of the new week
-    const newSelectedDate = newWeek;
-    setInternalSelectedDate(newSelectedDate);
-    onDateChange?.(newSelectedDate);
-  };
-
-  const selectDay = (dayIndex: number) => {
-    const selectedDate = new Date(currentWeek);
-    selectedDate.setDate(currentWeek.getDate() + dayIndex);
-    setInternalSelectedDate(selectedDate);
-    onDateChange?.(selectedDate);
-  };
-
-  const getWeekDays = () => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(currentWeek);
-      date.setDate(currentWeek.getDate() + i);
-      days.push(date);
+  const handleBookingManagementClick = (booking: Booking | ElevatorBooking, isElevator: boolean) => {
+    if (isElevator) {
+      setSelectedElevatorBooking(booking as ElevatorBooking);
+    } else {
+      setSelectedBooking(booking as Booking);
     }
-    return days;
+    setIsManagementOpen(true);
   };
-
-  const isToday = (date: Date) => {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
-  const isSelectedDay = (date: Date) => {
-    return date.toDateString() === currentSelectedDate.toDateString();
-  };
-
-  const weekDays = getWeekDays();
-  const weekNumber = getWeek(currentWeek);
 
   return (
     <div className="space-y-4">
+      <CalendarHeader
+        currentWeek={calendarState.currentWeek}
+        onNavigateWeek={calendarState.navigateWeek}
+      />
+
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Velg dato</CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigateWeek('prev')}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="text-sm font-medium min-w-[140px] text-center">
-                {format(currentWeek, 'MMMM yyyy', { locale: nb })} - Uke {weekNumber}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigateWeek('next')}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
         <CardContent className="p-4">
-          {isLoading ? (
+          {bookingData.isLoading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
             </div>
           ) : (
             <div className="space-y-4">
               {/* Week Day Selection */}
-              <div className="grid grid-cols-7 gap-1">
-                {weekDays.map((date, index) => (
-                  <Button
-                    key={index}
-                    variant={isSelectedDay(date) ? "default" : "outline"}
-                    size="sm"
-                    className={`h-16 flex flex-col items-center justify-center p-2 ${
-                      isToday(date) ? 'ring-2 ring-primary' : ''
-                    }`}
-                    onClick={() => selectDay(index)}
-                  >
-                    <span className="text-xs font-medium">
-                      {format(date, 'EEE', { locale: nb })}
-                    </span>
-                    <span className="text-sm font-bold">
-                      {format(date, 'd')}
-                    </span>
-                  </Button>
-                ))}
-              </div>
+              <WeekSelector
+                weekDays={calendarState.weekDays}
+                currentSelectedDate={calendarState.currentSelectedDate}
+                onSelectDay={calendarState.selectDay}
+              />
 
-              <div className="space-y-3">
-                {/* Gates Section */}
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Porter:</h4>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {gates.map((gate) => (
-                      <Button
-                        key={gate.id}
-                        variant={selectedGate === gate.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          onGateChange && onGateChange(gate.id);
-                          setSelectedElevator(null); // Clear elevator selection when selecting gate
-                        }}
-                      >
-                        {gate.name}
-                      </Button>
-                    ))}
+              <div className="space-y-4">
+                {/* Top row with resource type tabs and view controls */}
+                <div className="flex justify-between items-end">
+                  {/* Left side: Porter & Heiser tabs */}
+                  <div className="flex gap-2 border-b pb-2">
+                    <Button
+                      variant={calendarState.viewMode === 'gates' ? 'default' : 'outline'}
+                      onClick={() => calendarState.setViewMode('gates')}
+                      disabled={calendarState.gates.length === 0}
+                    >
+                      Porter ({calendarState.gates.length})
+                    </Button>
+                    <Button
+                      variant={calendarState.viewMode === 'elevators' ? 'default' : 'outline'}
+                      onClick={() => calendarState.setViewMode('elevators')}
+                      disabled={calendarState.elevators.length === 0}
+                    >
+                      Heiser ({calendarState.elevators.length})
+                    </Button>
+                  </div>
+
+                  {/* Right side: View controls */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant={calendarState.calendarView === 'daily' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => calendarState.setCalendarView('daily')}
+                      className="flex items-center gap-2"
+                    >
+                      <Calendar className="h-4 w-4" />
+                      Daglig
+                    </Button>
+                    <Button
+                      variant={calendarState.calendarView === 'weekly' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => calendarState.setCalendarView('weekly')}
+                      className="flex items-center gap-2"
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      Ukentlig
+                    </Button>
                   </div>
                 </div>
 
-                {/* New Booking Button */}
-                <div className="flex justify-end">
+                {/* Bottom row with resource buttons and new booking button */}
+                <div className="flex justify-between items-center">
+                  {/* Left side: Resource buttons */}
+                  <div className="flex-1">
+                    {calendarState.displayResources.length > 0 ? (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                          {calendarState.viewMode === 'gates' ? 'Tilgjengelige Porter:' : 'Tilgjengelige Heiser:'}
+                        </h4>
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                          {calendarState.displayResources.map((resource) => {
+                            const isActive = calendarState.viewMode === 'gates'
+                              ? calendarState.activeGateIds.includes(resource.id)
+                              : calendarState.activeElevatorIds.includes(resource.id);
+                            const isElevator = resource.type === 'elevator';
+
+                            return (
+                              <Button
+                                key={resource.id}
+                                variant={isActive ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                  if (calendarState.viewMode === 'gates') {
+                                    calendarState.handleGateToggle(resource.id);
+                                  } else {
+                                    calendarState.handleElevatorToggle(resource.id);
+                                  }
+                                }}
+                                className={isElevator ? 'border-red-200 text-red-700 hover:bg-red-50' : ''}
+                              >
+                                {resource.name}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2 border rounded-md bg-muted/50">
+                        <p className="text-xs text-muted-foreground leading-tight">
+                          Ingen {calendarState.viewMode === 'gates' ? 'porter' : 'heiser'} er konfigurert for dette prosjektet ennå.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right side: New booking button */}
                   <Button
                     variant="outline"
                     size="lg"
-                    onClick={() => {
-                      // Select first available gate or elevator and open dialog
-                      if (gates.length > 0) {
-                        onGateChange && onGateChange(gates[0].id);
-                        handleNewBooking();
-                      } else if (elevators.length > 0) {
-                        onGateChange && onGateChange(elevators[0].id);
-                        handleNewBooking();
-                      } else {
-                        toast.error("Ingen porter eller heiser tilgjengelig for booking");
-                      }
-                    }}
-                    className="text-base px-6 py-3"
+                    onClick={handleNewBookingFromButton}
+                    className="text-base px-6 py-3 ml-4"
                   >
                     <Plus className="mr-2 h-5 w-5" />
                     Ny leveranse
                   </Button>
                 </div>
-
-                {/* Elevators Section */}
-                {elevators.length > 0 ? (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Heiser:</h4>
-                    <div className="flex gap-2 overflow-x-auto pb-2">
-                      {elevators.map((elevator) => (
-                        <Button
-                          key={elevator.id}
-                          variant={selectedElevator === elevator.id ? "destructive" : "outline"}
-                          size="sm"
-                          className={selectedElevator === elevator.id
-                            ? "bg-red-600 text-white hover:bg-red-700"
-                            : "border-red-200 text-red-700 hover:bg-red-50"
-                          }
-                          onClick={() => {
-                            setSelectedElevator(elevator.id);
-                            onGateChange && onGateChange(null); // Clear gate selection when selecting elevator
-                          }}
-                        >
-                          {elevator.name}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Heiser:</h4>
-                    <div className="p-2 border rounded-md bg-muted/50">
-                      <p className="text-sm text-muted-foreground">
-                        Ingen heiser er konfigurert for dette prosjektet ennå.
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {(selectedGate || selectedElevator) && (
-                <div className="relative border rounded-lg overflow-hidden max-h-[900px] w-full">
-                  <div className="grid grid-cols-[120px_1fr]">
-                  <div className="border-r bg-muted/50">
-                    {Array.from({ length: 18 }, (_, i) => (
-                      <div key={i} className="h-12 border-b text-sm font-semibold text-foreground px-3 py-2 bg-background/80">
-                        {String(i + 4).padStart(2, '0')}:00
-                      </div>
-                    ))}
-                 </div>
-                    <div
-                      className="relative"
-                      onMouseUp={handleMouseUp}
-                    >
-                      {timeSlots.map((time, i) => {
-                        const currentResource = selectedGate || selectedElevator;
-                        const isElevator = !!selectedElevator;
-                        const booking = currentResource ? getBookingAtTime(currentResource, time, isElevator) : null;
-                        const isWorkingHour = isWithinWorkingHours(time);
-                        const isDragging = dragStart && dragEnd;
-                        const isInSelection = isDragging &&
-                          time >= Math.min(dragStart.time.getTime(), dragEnd.time.getTime()) &&
-                          time < Math.max(dragStart.time.getTime(), dragEnd.time.getTime());
-
-                        return (
-                          <div
-                            key={i}
-                            className={`h-3 border-b border-gray-200 cursor-pointer transition-colors ${
-                              !isWorkingHour ? 'bg-gray-100/50' : 'hover:bg-accent/50'
-                            } ${isInSelection ? 'bg-primary/20' : ''}`}
-                            onMouseDown={(e) => handleMouseDown(time, e)}
-                            onMouseMove={(e) => handleMouseMove(time, e)}
-                          />
-                        );
-                      })}
-
-                      {selectedGate && bookings
-                        .filter((b) => b.gate_id === selectedGate)
-                        .map((booking) => {
-                          const start = new Date(booking.start_time);
-                          const end = new Date(booking.end_time);
-                          const dayStart = startOfDay(currentSelectedDate);
-                          const minutesFromStart = (start.getTime() - dayStart.getTime()) / (1000 * 60);
-                          const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
-                          const top = ((minutesFromStart - offsetMinutes) / 15) * 12; // 12px per 15min slot (shorter)
-                          const height = (durationMinutes / 15) * 12;
-
-                          return (
-                            <div
-                              key={booking.id}
-                              className={`absolute left-1 right-1 rounded-md border-2 p-1 cursor-pointer ${getStatusColor(booking)}`}
-                              style={{ top: `${top}px`, height: `${height}px` }}
-                              onClick={() => {
-                                setSelectedBooking(booking);
-                                setIsManagementOpen(true);
-                              }}
-                            >
-                              <div className="text-xs font-semibold truncate">{booking.supplier_name}</div>
-                              <div className="text-xs truncate">{booking.contact_name}</div>
-                              {booking.requires_approval && (
-                                <div className="text-xs text-orange-700 font-medium">Trenger godkjenning</div>
-                              )}
-                            </div>
-                          );
-                        })}
-
-                      {selectedElevator && elevatorBookings
-                        .filter((b) => b.elevator_id === selectedElevator)
-                        .map((booking) => {
-                          const start = new Date(booking.start_time);
-                          const end = new Date(booking.end_time);
-                          const dayStart = startOfDay(currentSelectedDate);
-                          const minutesFromStart = (start.getTime() - dayStart.getTime()) / (1000 * 60);
-                          const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
-                          const top = ((minutesFromStart - offsetMinutes) / 15) * 12; // 12px per 15min slot (shorter)
-                          const height = (durationMinutes / 15) * 12;
-
-                          return (
-                            <div
-                              key={booking.id}
-                              className={`absolute left-1 right-1 rounded-md border-2 p-1 cursor-pointer bg-red-500/20 border-red-500`}
-                              style={{ top: `${top}px`, height: `${height}px` }}
-                              onClick={() => {
-                                setSelectedElevatorBooking(booking);
-                                setIsManagementOpen(true);
-                              }}
-                            >
-                              <div className="text-xs font-semibold truncate">{booking.supplier_name}</div>
-                              <div className="text-xs truncate">{booking.contact_name}</div>
-                              {booking.floors && (
-                                <div className="text-xs truncate">Etg: {booking.floors}</div>
-                              )}
-                            </div>
-                          );
-                        })}
+              {/* Calendar Grid */}
+              {calendarState.displayResources.length > 0 && (
+                <div className="relative border rounded-lg overflow-hidden max-h-[1400px] w-full">
+                  {/* Side navigation buttons pinned to vertical midpoint on both sides */}
+                  <div className="pointer-events-none">
+                    {/* Left side button */}
+                    <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-auto z-10">
+                      <button
+                        type="button"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-background hover:bg-accent transition"
+                        onClick={() => {
+                          const y = window.scrollY;
+                          if (calendarState.calendarView === 'daily') {
+                            const d = addDays(calendarState.currentSelectedDate, -1);
+                            calendarState.setInternalSelectedDate(d);
+                            onDateChange?.(d);
+                          } else {
+                            // weekly
+                            calendarState.navigateWeek('prev');
+                          }
+                          requestAnimationFrame(() => { window.scrollTo({ top: y }); });
+                        }}
+                        aria-label="Forrige"
+                        title="Forrige"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                    </div>
+                    {/* Right side button */}
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-auto z-10">
+                      <button
+                        type="button"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-background hover:bg-accent transition"
+                        onClick={() => {
+                          const y = window.scrollY;
+                          if (calendarState.calendarView === 'daily') {
+                            const d = addDays(calendarState.currentSelectedDate, 1);
+                            calendarState.setInternalSelectedDate(d);
+                            onDateChange?.(d);
+                          } else {
+                            // weekly
+                            calendarState.navigateWeek('next');
+                          }
+                          requestAnimationFrame(() => { window.scrollTo({ top: y }); });
+                        }}
+                        aria-label="Neste"
+                        title="Neste"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
                     </div>
                   </div>
+
+                  {calendarState.calendarView === 'daily' ? (
+                    <DailyView
+                      currentSelectedDate={calendarState.currentSelectedDate}
+                      displayResources={calendarState.displayResources as Array<{ id: string; name: string; type: 'gate' | 'elevator' }>}
+                      bookings={bookingData.bookings}
+                      elevatorBookings={bookingData.elevatorBookings}
+                      dragStart={dragStart}
+                      dragEnd={dragEnd}
+                      onMouseDown={handleMouseDown}
+                      onMouseMove={handleMouseMove}
+                      onMouseUp={handleMouseUp}
+                      onBookingClick={handleBookingManagementClick}
+                      onNavigateDay={(date) => {
+                        calendarState.setInternalSelectedDate(date);
+                        onDateChange?.(date);
+                      }}
+                    />
+                  ) : (
+                    <WeeklyView
+                      currentWeek={calendarState.currentWeek}
+                      weekDays={calendarState.weekDays}
+                      bookings={bookingData.bookings}
+                      elevatorBookings={bookingData.elevatorBookings}
+                      onDateClick={(date) => {
+                        calendarState.setInternalSelectedDate(date);
+                        onDateChange?.(date);
+                        calendarState.setCalendarView('daily');
+                      }}
+                      onBookingClick={handleBookingManagementClick}
+                      onNavigateWeek={(week) => {
+                        calendarState.setInternalSelectedDate(week);
+                        onDateChange?.(week);
+                      }}
+                    />
+                  )}
                 </div>
               )}
+
+              {/* Pagination Controls */}
+              <PaginationControls
+                currentResourcesList={calendarState.currentResourcesList}
+                resourcePage={calendarState.resourcePage}
+                onPageChange={calendarState.handleResourcePageChange}
+                viewMode={calendarState.viewMode}
+              />
             </div>
           )}
         </CardContent>
       </Card>
 
-      {(selectedGate || selectedElevator) && (dragStart && dragEnd || editBooking) && (
+      {/* Booking Dialog */}
+      {(dragStart || editBooking) && (
         <BookingDialog
           open={isDialogOpen}
           onOpenChange={(open) => {
@@ -716,13 +491,13 @@ export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChang
             }
           }}
           projectId={projectId}
-          gateId={selectedGate || selectedElevator || ''}
-          startTime={editBooking ? new Date(editBooking.start_time) : (dragStart.time < dragEnd.time ? dragStart.time : dragEnd.time)}
-          endTime={editBooking ? new Date(editBooking.end_time) : (dragStart.time < dragEnd.time ? dragEnd.time : dragStart.time)}
-          workingHours={getWorkingHoursForDate(currentSelectedDate)}
+          gateId={dragStart?.resourceId || selectedBooking?.gate_id || selectedElevatorBooking?.elevator_id || ''}
+          startTime={editBooking ? new Date(editBooking.start_time) : (dragStart ? (dragStart.time < (dragEnd?.time || dragStart.time) ? dragStart.time : dragEnd?.time || dragStart.time) : new Date())}
+          endTime={editBooking ? new Date(editBooking.end_time) : (dragStart ? (dragStart.time < (dragEnd?.time || dragStart.time) ? dragEnd?.time || dragStart.time : dragStart.time) : new Date())}
+          workingHours={getWorkingHoursForDate(calendarState.currentSelectedDate, bookingData.workingHours)}
           userRole={userRole}
-          onSuccess={selectedElevator ? fetchElevatorBookings : fetchBookings}
-          isElevator={!!selectedElevator}
+          onSuccess={calendarState.viewMode === 'gates' ? bookingData.refetchBookings : bookingData.refetchElevatorBookings}
+          isElevator={dragStart ? dragStart.isElevator : calendarState.viewMode === 'gates' ? false : true}
           editBooking={editBooking}
         />
       )}
@@ -732,12 +507,12 @@ export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChang
           booking={selectedBooking}
           open={isManagementOpen}
           onOpenChange={setIsManagementOpen}
-          onSuccess={fetchBookings}
+          onSuccess={bookingData.refetchBookings}
           canManage={userRole === "owner" || userRole === "level2"}
-          canEdit={currentUser === selectedBooking.created_by}
-          canDelete={currentUser === selectedBooking.created_by || userRole === "level2"}
+          canEdit={bookingData.currentUser === selectedBooking.created_by}
+          canDelete={bookingData.currentUser === selectedBooking.created_by || userRole === "level2"}
           onEdit={() => handleEditBooking(selectedBooking)}
-          currentUser={currentUser}
+          currentUser={bookingData.currentUser}
           userRole={userRole}
         />
       )}
@@ -747,12 +522,12 @@ export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChang
           booking={selectedElevatorBooking}
           open={isManagementOpen}
           onOpenChange={setIsManagementOpen}
-          onSuccess={fetchElevatorBookings}
+          onSuccess={bookingData.refetchElevatorBookings}
           canManage={userRole === "owner" || userRole === "level2"}
-          canEdit={currentUser === selectedElevatorBooking.created_by}
-          canDelete={currentUser === selectedElevatorBooking.created_by || userRole === "level2"}
+          canEdit={bookingData.currentUser === selectedElevatorBooking.created_by}
+          canDelete={bookingData.currentUser === selectedElevatorBooking.created_by || userRole === "level2"}
           onEdit={() => handleEditBooking(selectedElevatorBooking)}
-          currentUser={currentUser}
+          currentUser={bookingData.currentUser}
           userRole={userRole}
         />
       )}

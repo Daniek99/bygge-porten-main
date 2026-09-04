@@ -7,7 +7,7 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "127.0.0.1", // Bind to localhost only
-    port: 8080, // Your preferred port
+    port: 8081, // Your preferred port
     allowedHosts: [
       "wired-accepted-gecko.ngrok-free.app",
       "*.ngrok-free.app",

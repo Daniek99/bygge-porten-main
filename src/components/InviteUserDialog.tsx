@@ -179,11 +179,16 @@ export const InviteUserDialog = ({
     setIsLoading(true);
     try {
       // Check if user already exists
-      const { data: existingProfile } = await supabase
+      const { data: existingProfile, error: existingProfileError } = await supabase
         .from("profiles")
         .select("id")
         .eq("email", recipientEmail)
-        .single();
+        .maybeSingle();
+
+      if (existingProfileError) {
+        console.error("Error checking existing profile:", existingProfileError);
+        throw existingProfileError;
+      }
 
       if (existingProfile) {
         // Add existing user directly to project

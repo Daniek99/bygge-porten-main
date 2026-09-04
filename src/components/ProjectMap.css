@@ -1,0 +1,16 @@
+/* Fix for Leaflet popup z-index issue */
+.leaflet-container {
+  z-index: 0 !important;
+}
+
+.leaflet-popup {
+  z-index: 1000 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  z-index: 1001 !important;
+}
+
+.leaflet-popup-tip {
+  z-index: 1001 !important;
+}

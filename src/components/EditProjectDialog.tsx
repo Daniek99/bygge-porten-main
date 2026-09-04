@@ -30,8 +30,6 @@ interface EditProjectDialogProps {
   projectId: string;
   projectName: string;
   projectDescription: string | null;
-  projectLatitude?: number | null;
-  projectLongitude?: number | null;
   projectAddress?: string | null;
   projectNumber?: string | null;
   onSuccess: () => void;
@@ -53,8 +51,6 @@ export const EditProjectDialog = ({
   projectId,
   projectName: initialName,
   projectDescription: initialDescription,
-  projectLatitude: initialLatitude,
-  projectLongitude: initialLongitude,
   projectAddress: initialAddress,
   projectNumber: initialProjectNumber,
   onSuccess,
@@ -63,8 +59,6 @@ export const EditProjectDialog = ({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription || "");
   const [projectNumber, setProjectNumber] = useState(initialProjectNumber || "");
-  const [latitude, setLatitude] = useState(initialLatitude?.toString() || "");
-  const [longitude, setLongitude] = useState(initialLongitude?.toString() || "");
   const [address, setAddress] = useState(initialAddress || "");
   const [workingHours, setWorkingHours] = useState<Record<string, WorkingHours>>({
     monday: { start: '07:00', end: '15:30', enabled: true },
@@ -89,14 +83,13 @@ export const EditProjectDialog = ({
       setName(initialName);
       setDescription(initialDescription || "");
       setProjectNumber(initialProjectNumber || "");
-      setLatitude(initialLatitude?.toString() || "");
-      setLongitude(initialLongitude?.toString() || "");
       setAddress(initialAddress || "");
       fetchProjectDetails();
       fetchGates();
       fetchElevators();
     }
-  }, [open, projectId, initialName, initialDescription, initialProjectNumber, initialLatitude, initialLongitude, initialAddress]);
+  }, [open, projectId, initialName, initialDescription, initialProjectNumber, initialAddress]);
+
 
   const fetchProjectDetails = async () => {
     try {
@@ -174,13 +167,10 @@ export const EditProjectDialog = ({
     }
   };
 
-  const handlePlaceSelect = (place: { address: string; latitude: number; longitude: number }) => {
+  const handlePlaceSelect = (place: { address: string }) => {
     console.log("Place selected:", place);
     setAddress(place.address);
-    setLatitude(place.latitude.toString());
-    setLongitude(place.longitude.toString());
     toast.success(`Adresse valgt: ${place.address}`);
-    console.log("Updated coordinates:", { latitude: place.latitude, longitude: place.longitude });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -231,22 +221,6 @@ export const EditProjectDialog = ({
         project_number: projectNumber.trim() || null,
         working_hours: workingHours as any,
       };
-
-      // Handle location fields properly
-      const latValue = latitude ? parseFloat(latitude) : null;
-      const lngValue = longitude ? parseFloat(longitude) : null;
-
-      if (latValue !== null && !isNaN(latValue)) {
-        updateData.latitude = latValue;
-      } else if (latitude === '') {
-        updateData.latitude = null; // Allow clearing coordinates
-      }
-
-      if (lngValue !== null && !isNaN(lngValue)) {
-        updateData.longitude = lngValue;
-      } else if (longitude === '') {
-        updateData.longitude = null; // Allow clearing coordinates
-      }
 
       if (address !== undefined && address.trim() !== '') {
         updateData.address = address.trim();
@@ -520,47 +494,12 @@ export const EditProjectDialog = ({
                 label="Adresse"
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="latitude">Breddegrad (Latitude)</Label>
-                  <Input
-                    id="latitude"
-                    type="number"
-                    step="any"
-                    value={latitude}
-                    onChange={(e) => setLatitude(e.target.value)}
-                    placeholder="59.9139"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="longitude">Lengdegrad (Longitude)</Label>
-                  <Input
-                    id="longitude"
-                    type="number"
-                    step="any"
-                    value={longitude}
-                    onChange={(e) => setLongitude(e.target.value)}
-                    placeholder="10.7522"
-                  />
-                </div>
-              </div>
-
-              {(latitude && longitude) && (
+              {address && (
                 <div className="mt-4">
-                  {(() => {
-                    const latNum = parseFloat(latitude);
-                    const lngNum = parseFloat(longitude);
-                    console.log("Rendering ProjectMap with:", { latNum, lngNum, address, name });
-                    return (
-                      <ProjectMap
-                        key={`${latitude}-${longitude}-${Date.now()}`}
-                        latitude={latNum}
-                        longitude={lngNum}
-                        address={address}
-                        projectName={name}
-                      />
-                    );
-                  })()}
+                  <ProjectMap
+                    address={address}
+                    projectName={name}
+                  />
                 </div>
               )}
             </TabsContent>

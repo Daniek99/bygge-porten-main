@@ -14,7 +14,6 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { PlacesAutocomplete } from "@/components/PlacesAutocomplete";
 import ProjectMap from "@/components/ProjectMap";
-import { Wrapper } from "@googlemaps/react-wrapper";
 
 const CreateProject = () => {
   const { user } = useAuth();
@@ -29,8 +28,6 @@ const CreateProject = () => {
   });
   const [locationData, setLocationData] = useState({
     address: "",
-    latitude: "",
-    longitude: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -47,14 +44,11 @@ const CreateProject = () => {
     // Temporarily disable admin check for testing
     // TODO: Re-enable proper admin validation after fixing RLS policies
 
-    // Validate that either address or coordinates are provided
+    // Validate that address is provided
     const hasAddress = locationData.address && locationData.address.trim();
-    const hasCoordinates = locationData.latitude && locationData.longitude &&
-                          !isNaN(parseFloat(locationData.latitude)) &&
-                          !isNaN(parseFloat(locationData.longitude));
 
-    if (!hasAddress && !hasCoordinates) {
-      toast.error("Du må oppgi enten adresse eller koordinater for prosjektet");
+    if (!hasAddress) {
+      toast.error("Du må oppgi en adresse for prosjektet");
       return;
     }
 
@@ -109,12 +103,6 @@ const CreateProject = () => {
       // Only add project_number if it has a value
       if (formData.projectNumber && formData.projectNumber.trim()) {
         insertPayload.project_number = formData.projectNumber.trim();
-      }
-
-      // Add location data if provided
-      if (locationData.latitude && locationData.longitude) {
-        insertPayload.latitude = parseFloat(locationData.latitude);
-        insertPayload.longitude = parseFloat(locationData.longitude);
       }
 
       if (locationData.address) {
@@ -203,11 +191,9 @@ const CreateProject = () => {
     setImageUrl(URL.createObjectURL(file));
   };
 
-  const handlePlaceSelect = (place: { address: string; latitude: number; longitude: number }) => {
+  const handlePlaceSelect = (place: { address: string }) => {
     setLocationData({
       address: place.address,
-      latitude: place.latitude.toString(),
-      longitude: place.longitude.toString(),
     });
   };
 
@@ -331,54 +317,22 @@ const CreateProject = () => {
                 </TabsContent>
 
                 <TabsContent value="location" className="space-y-4">
-                  <Wrapper
-                    apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-                    libraries={['places']}
-                  >
-                    <PlacesAutocomplete
-                      value={locationData.address}
-                      onChange={(address) => setLocationData({ ...locationData, address })}
-                      onPlaceSelect={handlePlaceSelect}
-                      placeholder="Søk etter prosjektadresse..."
-                      label="Adresse"
-                    />
+                  <PlacesAutocomplete
+                    value={locationData.address}
+                    onChange={(address) => setLocationData({ ...locationData, address })}
+                    onPlaceSelect={handlePlaceSelect}
+                    placeholder="Søk etter prosjektadresse..."
+                    label="Adresse"
+                  />
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="latitude">Breddegrad (Latitude)</Label>
-                        <Input
-                          id="latitude"
-                          type="number"
-                          step="any"
-                          value={locationData.latitude}
-                          onChange={(e) => setLocationData({ ...locationData, latitude: e.target.value })}
-                          placeholder="59.9139"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="longitude">Lengdegrad (Longitude)</Label>
-                        <Input
-                          id="longitude"
-                          type="number"
-                          step="any"
-                          value={locationData.longitude}
-                          onChange={(e) => setLocationData({ ...locationData, longitude: e.target.value })}
-                          placeholder="10.7522"
-                        />
-                      </div>
+                  {locationData.address && (
+                    <div className="mt-4">
+                      <ProjectMap
+                        address={locationData.address}
+                        projectName={formData.name || "Nytt prosjekt"}
+                      />
                     </div>
-
-                    {(locationData.latitude && locationData.longitude) && (
-                      <div className="mt-4">
-                        <ProjectMap
-                          latitude={parseFloat(locationData.latitude)}
-                          longitude={parseFloat(locationData.longitude)}
-                          address={locationData.address}
-                          projectName={formData.name || "Nytt prosjekt"}
-                        />
-                      </div>
-                    )}
-                  </Wrapper>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="gates" className="space-y-4">

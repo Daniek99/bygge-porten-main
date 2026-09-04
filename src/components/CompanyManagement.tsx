@@ -213,7 +213,7 @@ export const CompanyManagement = ({
             {/* Search Section */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Søk i Brønnøysundregisteret</CardTitle>
+                <CardTitle className="text-lg">Finn foretak</CardTitle>
                 <CardDescription>
                   Søk etter norske foretak som skal ha tilgang til prosjektet
                 </CardDescription>
@@ -225,7 +225,7 @@ export const CompanyManagement = ({
                     <div className="relative">
                       <Input
                         id="company-search"
-                        placeholder="Søk etter foretak... (minimum 2 tegn)"
+                        placeholder="Søk..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className={isSearching ? "pr-10" : ""}
@@ -293,7 +293,7 @@ export const CompanyManagement = ({
             {/* Current Companies */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Godkjente foretak</CardTitle>
+                <CardTitle className="text-lg">Liste over selskaper</CardTitle>
                 <CardDescription>
                   Foretak som har tilgang til dette prosjektet
                 </CardDescription>

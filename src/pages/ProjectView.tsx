@@ -34,8 +34,6 @@ interface Project {
   id: string;
   name: string;
   description: string | null;
-  latitude: number | null;
-  longitude: number | null;
   address: string | null;
   site_image_url: string | null;
   project_number: string | null;
@@ -317,8 +315,6 @@ const ProjectView = () => {
         {/* Top section: Location and Building site */}
         <div className="grid gap-6 md:grid-cols-2">
           <ProjectMap
-            latitude={project.latitude || 59.9139}
-            longitude={project.longitude || 10.7497}
             address={project.address}
             projectName={project.name}
           />
@@ -415,8 +411,6 @@ const ProjectView = () => {
         projectId={project.id}
         projectName={project.name}
         projectDescription={project.description}
-        projectLatitude={project.latitude}
-        projectLongitude={project.longitude}
         projectAddress={project.address}
         projectNumber={project.project_number}
         onSuccess={fetchProject}

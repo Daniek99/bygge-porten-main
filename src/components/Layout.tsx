@@ -39,10 +39,10 @@ export const Layout = ({ children }: LayoutProps) => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (user && isProfileOpen) {
+    if (user) {
       fetchProfile();
     }
-  }, [user, isProfileOpen]);
+  }, [user]);
 
   const fetchProfile = async () => {
     try {
@@ -69,7 +69,9 @@ export const Layout = ({ children }: LayoutProps) => {
               <Building2 className="w-5 h-5 text-primary-foreground" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-lg font-bold">Byggeporten</h1>
+              <h1 className="text-lg font-bold">
+                Velkommen, {profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Bruker'}!
+              </h1>
               <p className="text-xs text-muted-foreground">Leveransestyring</p>
             </div>
           </div>

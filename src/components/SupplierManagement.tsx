@@ -65,11 +65,14 @@ export const SupplierManagement = ({
   const [address, setAddress] = useState("");
 
   useEffect(() => {
-    if (open) {
-      fetchUserCompany();
+    fetchUserCompany();
+  }, []);
+
+  useEffect(() => {
+    if (open && userCompany) {
       fetchSuppliers();
     }
-  }, [open]);
+  }, [open, userCompany]);
 
   const fetchUserCompany = async () => {
     try {

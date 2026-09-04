@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,18 +21,19 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const fromEmail = Deno.env.get("RESEND_FROM_EMAIL");
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("Missing Supabase environment variables");
-      return new Response(JSON.stringify({ error: "Server configuration error" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
+    if (!resendApiKey || !fromEmail) {
+      console.error("Missing RESEND_API_KEY or RESEND_FROM_EMAIL environment variables");
+      return new Response(
+        JSON.stringify({ error: "Server configuration error: missing email credentials" }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const {
       email,
@@ -42,7 +42,7 @@ const handler = async (req: Request): Promise<Response> => {
       role,
       expiryDays = 7,
       senderName = "Prosjekt Admin",
-      customRole
+      customRole,
     }: InvitationEmailRequest = await req.json();
 
     if (!email || !invitationCode || !projectName || !role) {
@@ -52,7 +52,13 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const roleText = role === "level2" ? "Koordinator (Nivå 2)" : role === "level0" ? "Leverandør (Nivå 0)" : "Bestiller (Nivå 1)";
+    const roleText =
+      role === "level2"
+        ? "Koordinator (Nivå 2)"
+        : role === "level0"
+        ? "Leverandør (Nivå 0)"
+        : "Bestiller (Nivå 1)";
+
     const registrationUrl = `${req.headers.get("origin") || "http://127.0.0.1:8081"}/auth`;
 
     const html = `
@@ -62,7 +68,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
             ${senderName} har invitert deg til å bli med i prosjektet <strong>${projectName}</strong>
-            som <strong>${roleText}</strong>${customRole ? ` (${customRole})` : ''}.
+            som <strong>${roleText}</strong>${customRole ? ` (${customRole})` : ""}.
           </p>
 
           <div style="background-color: #f3f4f6; padding: 20px; border-radius: 6px; margin: 25px 0;">
@@ -92,21 +98,36 @@ const handler = async (req: Request): Promise<Response> => {
       </div>
     `;
 
-    // For development: Just log the email and return success
-    console.log("=== INVITATION EMAIL SIMULATED ===");
-    console.log("To:", email);
-    console.log("Subject:", `Invitasjon til prosjekt: ${projectName}`);
-    console.log("Role:", role);
-    console.log("Custom Role:", customRole);
-    console.log("Project:", projectName);
-    console.log("Invitation Code:", invitationCode);
-    console.log("HTML Preview:", html.substring(0, 200) + "...");
-    console.log("=================================");
+    const resendResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resendApiKey}`,
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [email],
+        subject: `Invitasjon til prosjekt: ${projectName}`,
+        html,
+      }),
+    });
 
-    // Return success without actually sending email
-    console.log("Email simulation completed successfully");
+    if (!resendResponse.ok) {
+      const errorBody = await resendResponse.text();
+      console.error("Resend API error:", resendResponse.status, errorBody);
+      return new Response(
+        JSON.stringify({ error: `Failed to send email: ${resendResponse.status}` }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
 
-    return new Response(JSON.stringify({ success: true }), {
+    const result = await resendResponse.json();
+    console.log("Invitation email sent via Resend:", result.id);
+
+    return new Response(JSON.stringify({ success: true, id: result.id }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",

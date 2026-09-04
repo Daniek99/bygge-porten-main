@@ -88,8 +88,8 @@ const Dashboard = () => {
   };
 
   const handleCreateProject = () => {
-    if (!isAdmin) {
-      toast.error("Kun administratorer kan opprette prosjekter");
+    if (!isAdmin || userRole !== "owner") {
+      toast.error("Kun eiere kan opprette prosjekter");
       return;
     }
     navigate("/projects/new");
@@ -164,20 +164,22 @@ const Dashboard = () => {
               Oversikt over dine prosjekter og leveranser
             </p>
           </div>
-          <Button onClick={handleCreateProject} disabled={!isAdmin}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nytt prosjekt
-            {isAdmin && <Shield className="ml-2 h-4 w-4" />}
-          </Button>
+          {isAdmin && userRole === "owner" && (
+            <Button onClick={handleCreateProject}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nytt prosjekt
+              <Shield className="ml-2 h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Aktive prosjekter</CardTitle>
-              <Building className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-xs font-medium">Aktive prosjekter</CardTitle>
+              <Building className="h-3 w-3 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-1">
               <div className="text-2xl font-bold">{projects.length}</div>
               <p className="text-xs text-muted-foreground">
                 Totalt antall prosjekter
@@ -186,11 +188,11 @@ const Dashboard = () => {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Dagens bookinger</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-xs font-medium">Dagens bookinger</CardTitle>
+              <Calendar className="h-3 w-3 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-1">
               <div className="text-2xl font-bold">0</div>
               <p className="text-xs text-muted-foreground">
                 Leveranser i dag
@@ -199,11 +201,11 @@ const Dashboard = () => {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Varsler</CardTitle>
-              <Bell className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-xs font-medium">Varsler</CardTitle>
+              <Bell className="h-3 w-3 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-1">
               <div className="text-2xl font-bold">{notifications}</div>
               <p className="text-xs text-muted-foreground">
                 Uleste varsler
@@ -223,11 +225,13 @@ const Dashboard = () => {
                   Kom i gang ved å opprette ditt første prosjekt for å administrere
                   leveranser til byggeplassen.
                 </p>
-                <Button onClick={handleCreateProject} disabled={!isAdmin}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Opprett prosjekt
-                  {isAdmin && <Shield className="ml-2 h-4 w-4" />}
-                </Button>
+                {isAdmin && userRole === "owner" && (
+                  <Button onClick={handleCreateProject}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Opprett prosjekt
+                    <Shield className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (

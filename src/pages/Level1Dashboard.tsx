@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Building, Calendar, Bell, UserPlus, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { BookingDialog } from "@/components/BookingDialog";
+import { BookingManagement } from "@/components/BookingManagement";
 
 interface Project {
   id: string;
@@ -27,6 +29,18 @@ interface MyBooking {
   elevators?: {
     name: string;
   };
+  project_id: string;
+  project?: {
+    address?: string;
+    project_number?: string;
+  };
+  created_by: string;
+  elevator_id?: string;
+  gate_id?: string;
+  type?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  contact_email?: string;
 }
 
 const Level1Dashboard = () => {
@@ -35,6 +49,10 @@ const Level1Dashboard = () => {
   const [myBookings, setMyBookings] = useState<MyBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<number>(0);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isManagementOpen, setIsManagementOpen] = useState(false);
+  const [editBooking, setEditBooking] = useState<MyBooking | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<MyBooking | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -85,6 +103,13 @@ const Level1Dashboard = () => {
           status,
           gates (
             name
+          ),
+          project_id,
+          created_by,
+          gate_id,
+          projects (
+            address,
+            project_number
           )
         `)
         .eq("created_by", user?.id)
@@ -104,6 +129,13 @@ const Level1Dashboard = () => {
           status,
           elevators (
             name
+          ),
+          project_id,
+          created_by,
+          elevator_id,
+          projects (
+            address,
+            project_number
           )
         `)
         .eq("created_by", user?.id)
@@ -112,13 +144,24 @@ const Level1Dashboard = () => {
 
       if (elevatorError) throw elevatorError;
 
-      // Combine and format the data
+      // Combine and format data
       const combinedBookings = [
-        ...(data || []).map(booking => ({ ...booking, type: 'gate' })),
+        ...(data || []).map(booking => ({ 
+          ...booking, 
+          type: 'gate', 
+          project_id: booking.project_id, 
+          created_by: booking.created_by, 
+          gate_id: booking.gate_id,
+          project: booking.projects
+        })),
         ...(elevatorBookings || []).map(booking => ({
           ...booking,
           type: 'elevator',
-          gates: booking.elevators ? { name: booking.elevators.name } : null
+          gates: booking.elevators ? { name: booking.elevators.name } : null,
+          project_id: booking.project_id,
+          created_by: booking.created_by,
+          elevator_id: booking.elevator_id,
+          project: booking.projects
         }))
       ];
 
@@ -141,6 +184,16 @@ const Level1Dashboard = () => {
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
     }
+  };
+
+  const handleEditBooking = (booking: MyBooking) => {
+    setEditBooking(booking);
+    setIsDialogOpen(true);
+  };
+
+  const handleBookingClick = (booking: MyBooking) => {
+    setSelectedBooking(booking);
+    setIsManagementOpen(true);
   };
 
   if (authLoading || isLoading) {
@@ -245,7 +298,11 @@ const Level1Dashboard = () => {
             ) : (
               <div className="space-y-4">
                 {myBookings.map((booking) => (
-                  <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div 
+                    key={booking.id} 
+                    className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => handleBookingClick(booking)}
+                  >
                     <div>
                       <p className="font-medium">{booking.supplier_name}</p>
                       <p className="text-sm text-muted-foreground">
@@ -256,6 +313,12 @@ const Level1Dashboard = () => {
                           minute: "2-digit",
                         })}
                       </p>
+                      {booking.project && (
+                        <p className="text-xs text-muted-foreground">
+                          {booking.project.address && `${booking.project.address}`}
+                          {booking.project.project_number && ` • Prosjekt ${booking.project.project_number}`}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -314,6 +377,44 @@ const Level1Dashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Booking Management Dialog */}
+      {selectedBooking && (
+        <BookingManagement
+          booking={selectedBooking as any}
+          open={isManagementOpen}
+          onOpenChange={setIsManagementOpen}
+          onSuccess={fetchMyBookings}
+          canManage={false}
+          canEdit={user?.id === selectedBooking.created_by}
+          canDelete={user?.id === selectedBooking.created_by}
+          onEdit={() => handleEditBooking(selectedBooking)}
+          currentUser={user?.id}
+          userRole="level1"
+        />
+      )}
+
+      {/* Edit Booking Dialog */}
+      {editBooking && (
+        <BookingDialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditBooking(null);
+            }
+          }}
+          projectId={editBooking.project_id}
+          gateId={editBooking.gate_id || editBooking.elevator_id || ''}
+          startTime={new Date(editBooking.start_time)}
+          endTime={new Date(editBooking.end_time)}
+          workingHours={{ start: '07:00', end: '15:30', enabled: true }}
+          userRole="level1"
+          onSuccess={fetchMyBookings}
+          isElevator={!!editBooking.elevator_id}
+          editBooking={editBooking}
+        />
+      )}
     </Layout>
   );
 };

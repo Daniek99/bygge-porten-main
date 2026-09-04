@@ -149,17 +149,18 @@ export const BookingManagement = ({
 
       if (error) throw error;
 
-      // If deleted by level2 and not the creator, notify the creator
-      if (userRole === "level2" && currentUser !== booking.created_by) {
+      // Notify the booking creator if deleted by admin (level2 or owner) and not the creator
+      if ((userRole === "level2" || userRole === "owner") && currentUser !== booking.created_by) {
         const { error: notifyError } = await supabase
           .from("notifications")
           .insert({
             project_id: booking.project_id,
-            booking_id: booking.id,
+            booking_id: booking.elevator_id ? undefined : booking.id,
+            elevator_booking_id: booking.elevator_id ? booking.id : undefined,
             recipient_id: booking.created_by,
-            type: "booking_updated",
-            title: "Booking slettet",
-            message: "Din booking har blitt slettet av en koordinator."
+            type: "booking_cancelled",
+            title: booking.elevator_id ? "Heisbooking kansellert" : "Booking kansellert",
+            message: `Din ${booking.elevator_id ? 'heisbooking' : 'booking'} har blitt kansellert av en administrator.`
           });
 
         if (notifyError) {

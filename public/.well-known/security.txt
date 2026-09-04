@@ -1,0 +1,5 @@
+# Security policy for veidekkelogistics.com
+# Update the Expires date at least once a year (required by RFC 9116).
+Contact: mailto:security@veidekkelogistics.com
+Expires: 2027-09-04T00:00:00.000Z
+Preferred-Languages: no, en
