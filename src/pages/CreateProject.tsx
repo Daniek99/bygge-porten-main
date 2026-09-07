@@ -364,7 +364,7 @@ const CreateProject = () => {
                               ({Math.round((gatePositions[index]!.x) * 100)}%, {Math.round((gatePositions[index]!.y) * 100)}%)
                             </span>
                           )}
-                          {formData.gates.length > 1 && (
+                          {formData.gates.length > 0 && (
                             <Button
                               type="button"
                               variant="outline"

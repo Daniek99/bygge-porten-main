@@ -121,17 +121,11 @@ export const EditProjectDialog = ({
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
-        setGates(data.map(gate => gate.name));
-        setGatePositions(data.map(gate => gate.position_x && gate.position_y ? {
-          x: gate.position_x,
-          y: gate.position_y
-        } : null));
-      } else {
-        // If no gates exist, initialize with defaults
-        setGates(["Port 1", "Port 2", "Port 3"]);
-        setGatePositions([null, null, null]);
-      }
+      setGates(data?.map(gate => gate.name) || []);
+      setGatePositions(data?.map(gate => gate.position_x && gate.position_y ? {
+        x: gate.position_x,
+        y: gate.position_y
+      } : null) || []);
     } catch (error) {
       console.error("Error fetching gates:", error);
     }
@@ -148,22 +142,13 @@ export const EditProjectDialog = ({
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
-        setElevators(data.map(elevator => elevator.name));
-        setElevatorPositions(data.map(elevator => elevator.position_x && elevator.position_y ? {
-          x: elevator.position_x,
-          y: elevator.position_y
-        } : null));
-      } else {
-        // If no elevators exist, initialize with default
-        setElevators(["Heis 1"]);
-        setElevatorPositions([null]);
-      }
+      setElevators(data?.map(elevator => elevator.name) || []);
+      setElevatorPositions(data?.map(elevator => elevator.position_x && elevator.position_y ? {
+        x: elevator.position_x,
+        y: elevator.position_y
+      } : null) || []);
     } catch (error) {
       console.error("Error fetching elevators:", error);
-      // Initialize with default even if fetch fails
-      setElevators(["Heis 1"]);
-      setElevatorPositions([null]);
     }
   };
 
@@ -244,13 +229,18 @@ export const EditProjectDialog = ({
         throw error;
       }
 
-      // Update gates
+      // Update gates, including the empty state when all gates are removed.
       const validGates = gates.filter(gate => gate.trim());
-      if (validGates.length > 0) {
-        // Delete existing gates
-        await supabase.from("gates").delete().eq("project_id", projectId);
+      const { error: deleteGatesError } = await supabase
+        .from("gates")
+        .delete()
+        .eq("project_id", projectId);
 
-        // Insert new gates
+      if (deleteGatesError) {
+        throw deleteGatesError;
+      }
+
+      if (validGates.length > 0) {
         const gatesData = validGates.map((gateName, index) => ({
           project_id: projectId,
           name: gateName.trim(),
@@ -266,13 +256,18 @@ export const EditProjectDialog = ({
         }
       }
 
-      // Update elevators
+      // Update elevators, including the empty state when all elevators are removed.
       const validElevators = elevators.filter(elevator => elevator.trim());
-      if (validElevators.length > 0) {
-        // Delete existing elevators
-        await supabase.from("elevators").delete().eq("project_id", projectId);
+      const { error: deleteElevatorsError } = await supabase
+        .from("elevators")
+        .delete()
+        .eq("project_id", projectId);
 
-        // Insert new elevators
+      if (deleteElevatorsError) {
+        throw deleteElevatorsError;
+      }
+
+      if (validElevators.length > 0) {
         const elevatorsData = validElevators.map((elevatorName, index) => ({
           project_id: projectId,
           name: elevatorName.trim(),
@@ -356,9 +351,14 @@ export const EditProjectDialog = ({
     setElevators(newElevators);
     setElevatorPositions(elevatorPositions.filter((_, i) => i !== index));
 
-    // Adjust placingIndex if we're removing the elevator being placed
-    if (placingIndex !== null && placingIndex >= gates.length + index) {
-      setPlacingIndex(placingIndex - 1);
+    // Keep placement state aligned when an elevator is removed, including the last one.
+    if (placingIndex !== null) {
+      const removedPlacementIndex = gates.length + index;
+      if (placingIndex === removedPlacementIndex) {
+        setPlacingIndex(null);
+      } else if (placingIndex > removedPlacementIndex) {
+        setPlacingIndex(placingIndex - 1);
+      }
     }
   };
 
@@ -534,7 +534,7 @@ export const EditProjectDialog = ({
                           ({Math.round((gatePositions[index]!.x) * 100)}%, {Math.round((gatePositions[index]!.y) * 100)}%)
                         </span>
                       )}
-                      {gates.length > 1 && (
+                      {gates.length > 0 && (
                         <Button
                           type="button"
                           variant="outline"
@@ -586,7 +586,7 @@ export const EditProjectDialog = ({
                           ({Math.round((elevatorPositions[index]!.x) * 100)}%, {Math.round((elevatorPositions[index]!.y) * 100)}%)
                         </span>
                       )}
-                      {elevators.length > 1 && (
+                      {elevators.length > 0 && (
                         <Button
                           type="button"
                           variant="outline"
