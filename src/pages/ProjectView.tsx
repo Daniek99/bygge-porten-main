@@ -71,6 +71,7 @@ const ProjectView = () => {
   const [gates, setGates] = useState<Gate[]>([]);
   const [elevators, setElevators] = useState<Elevator[]>([]);
   const [selectedGate, setSelectedGate] = useState<string | null>(null);
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -192,6 +193,11 @@ const ProjectView = () => {
     } catch (error: any) {
       console.error("Error fetching elevators:", error);
     }
+  };
+
+  const handleProjectUpdateSuccess = async () => {
+    await Promise.all([fetchProject(), fetchGates(), fetchElevators()]);
+    setCalendarRefreshKey((key) => key + 1);
   };
 
   const getGatePosition = (gateId: string) => {
@@ -400,6 +406,7 @@ const ProjectView = () => {
               userRole={userRole}
               selectedGate={selectedGate}
               onGateChange={setSelectedGate}
+              resourcesRefreshKey={calendarRefreshKey}
             />
           </CardContent>
         </Card>
@@ -413,7 +420,7 @@ const ProjectView = () => {
         projectDescription={project.description}
         projectAddress={project.address}
         projectNumber={project.project_number}
-        onSuccess={fetchProject}
+        onSuccess={handleProjectUpdateSuccess}
       />
 
       <InviteUserDialog

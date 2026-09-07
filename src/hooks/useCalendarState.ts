@@ -50,6 +50,22 @@ export const useCalendarState = ({
     }
   }, [gates, elevators]);
 
+  // Remove deleted resources from the current selection and switch to an available resource type.
+  useEffect(() => {
+    const gateIds = new Set(gates.map((gate) => gate.id));
+    const elevatorIds = new Set(elevators.map((elevator) => elevator.id));
+
+    setActiveGateIds((currentIds) => currentIds.filter((id) => gateIds.has(id)));
+    setActiveElevatorIds((currentIds) => currentIds.filter((id) => elevatorIds.has(id)));
+    setSelectedElevator((currentId) => currentId && elevatorIds.has(currentId) ? currentId : null);
+
+    if (viewMode === 'elevators' && elevators.length === 0 && gates.length > 0) {
+      setViewMode('gates');
+    } else if (viewMode === 'gates' && gates.length === 0 && elevators.length > 0) {
+      setViewMode('elevators');
+    }
+  }, [gates, elevators, viewMode]);
+
   // Ensure only one mode is active, and if resources exist, at least one is selected
   useEffect(() => {
     if (viewMode === 'gates' && activeGateIds.length === 0 && gates.length > 0) {

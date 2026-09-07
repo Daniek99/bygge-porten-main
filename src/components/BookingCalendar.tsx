@@ -84,13 +84,14 @@ interface WorkingHours {
 interface BookingCalendarProps {
   projectId: string;
   userRole?: "owner" | "level2" | "level1" | "level0" | null;
+  resourcesRefreshKey?: number;
   selectedDate?: Date;
   onDateChange?: (date: Date) => void;
   selectedGate?: string | null;
   onGateChange?: (gateId: string | null) => void;
 }
 
-export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChange, selectedGate, onGateChange }: BookingCalendarProps) => {
+export const BookingCalendar = ({ projectId, userRole, resourcesRefreshKey = 0, selectedDate, onDateChange, selectedGate, onGateChange }: BookingCalendarProps) => {
   // Use custom hooks for state management
   const calendarState = useCalendarState({ selectedDate, onDateChange, selectedGate, onGateChange });
   const bookingData = useBookingData({
@@ -141,7 +142,7 @@ export const BookingCalendar = ({ projectId, userRole, selectedDate, onDateChang
     };
 
     fetchInitialData();
-  }, [projectId]);
+  }, [projectId, resourcesRefreshKey]);
 
   // Data fetching is now handled by useBookingData hook
 
