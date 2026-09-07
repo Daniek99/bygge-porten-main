@@ -54,12 +54,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     const roleText =
       role === "level2"
-        ? "Koordinator (Nivå 2)"
+        ? "Koordinator"
         : role === "level0"
-        ? "Leverandør (Nivå 0)"
-        : "Bestiller (Nivå 1)";
+        ? "Leverandør"
+        : "Bestiller";
 
-    const registrationUrl = `${req.headers.get("origin") || "http://127.0.0.1:8081"}/auth`;
+    const registrationUrl = "https://veidekkelogistics.com/auth";
+    const roleDescription = customRole ? `${roleText} (${customRole})` : roleText;
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
@@ -68,7 +69,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
             ${senderName} har invitert deg til å bli med i prosjektet <strong>${projectName}</strong>
-            som <strong>${roleText}</strong>${customRole ? ` (${customRole})` : ""}.
+            som <strong>${roleDescription}</strong>.
           </p>
 
           <div style="background-color: #f3f4f6; padding: 20px; border-radius: 6px; margin: 25px 0;">
@@ -89,6 +90,10 @@ const handler = async (req: Request): Promise<Response> => {
             </a>
           </div>
 
+          <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
+            Registreringsside: <a href="${registrationUrl}" style="color: #2563eb;">${registrationUrl}</a>
+          </p>
+
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
 
           <p style="color: #9ca3af; font-size: 12px; line-height: 1.5;">
@@ -97,6 +102,19 @@ const handler = async (req: Request): Promise<Response> => {
         </div>
       </div>
     `;
+
+    const text = `
+Du har fått en invitasjon!
+
+${senderName} har invitert deg til å bli med i prosjektet ${projectName} som ${roleDescription}.
+
+Din invitasjonskode: ${invitationCode}
+Koden utløper om ${expiryDays} dager.
+
+Registrer deg her: ${registrationUrl}
+
+Hvis du ikke forventet denne invitasjonen, kan du ignorere denne e-posten.
+`;
 
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -109,6 +127,7 @@ const handler = async (req: Request): Promise<Response> => {
         to: [email],
         subject: `Invitasjon til prosjekt: ${projectName}`,
         html,
+        text,
       }),
     });
 
