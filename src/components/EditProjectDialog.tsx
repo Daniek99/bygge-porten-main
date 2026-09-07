@@ -711,7 +711,7 @@ export const EditProjectDialog = ({
 
       {/* Fullscreen Image Overlay */}
       {isFullscreen && imageUrl && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-75">
           <div className="relative max-w-[90vw] max-h-[90vh]">
             <Button
               onClick={closeFullscreen}
