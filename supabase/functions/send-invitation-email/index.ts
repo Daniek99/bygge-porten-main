@@ -59,8 +59,8 @@ const handler = async (req: Request): Promise<Response> => {
         ? "Leverandør"
         : "Bestiller";
 
-    const registrationUrl = "https://bygge-porten-main-git-main-danilekman-5758s-projects.vercel.app/auth";
-    const siteUrl = "https://bygge-porten-main-git-main-danilekman-5758s-projects.vercel.app";
+    const registrationUrl = "https://bygge-porten-main.vercel.app/auth";
+    const siteUrl = "https://bygge-porten-main.vercel.app";
     const roleDescription = customRole ? `${roleText} (${customRole})` : roleText;
 
     const html = `<!DOCTYPE html>
