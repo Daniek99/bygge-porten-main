@@ -59,61 +59,125 @@ const handler = async (req: Request): Promise<Response> => {
         ? "Leverandør"
         : "Bestiller";
 
-    const registrationUrl = "https://veidekkelogistics.com/auth";
+    const registrationUrl = "https://byggeporten.no/auth";
+    const siteUrl = "https://byggeporten.no";
     const roleDescription = customRole ? `${roleText} (${customRole})` : roleText;
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-        <div style="background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <h1 style="color: #1f2937; margin-top: 0;">Du har fått en invitasjon!</h1>
+    const html = `<!DOCTYPE html>
+<html lang="no">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;">
+  <!-- Preheader (hidden preview text) -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+    ${senderName} har invitert deg til ${projectName} som ${roleDescription} &mdash; koden din utløper om ${expiryDays} dager.
+  </div>
 
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-            ${senderName} har invitert deg til å bli med i prosjektet <strong>${projectName}</strong>
-            som <strong>${roleDescription}</strong>.
-          </p>
-
-          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 6px; margin: 25px 0;">
-            <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">Din invitasjonskode:</p>
-            <p style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #1f2937; font-family: 'Courier New', monospace;">
-              ${invitationCode}
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f1f5f9;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;width:100%;">
+        <!-- Header -->
+        <tr>
+          <td style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2563eb 100%); border-radius:12px 12px 0 0; padding:28px 32px; text-align:center;">
+            <div style="font-family:'Segoe UI',Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:3px; color:#93c5fd; text-transform:uppercase; margin-bottom:8px;">BYGGEPORTEN</div>
+            <div style="font-family:'Segoe UI',Arial,sans-serif; font-size:22px; font-weight:800; color:#ffffff; line-height:1.2;">Du har fått en invitasjon &nbsp;🎉</div>
+            <div style="font-family:'Segoe UI',Arial,sans-serif; font-size:13px; color:#bfdbfe; margin-top:6px; opacity:0.9;">${projectName}</div>
+          </td>
+        </tr>
+        <!-- Card -->
+        <tr>
+          <td style="background-color:#ffffff; padding:32px; border-radius:0 0 12px 12px; box-shadow:0 4px 24px rgba(15,23,42,0.08);">
+            <p style="margin:0 0 6px 0; font-family:'Segoe UI',Arial,sans-serif; font-size:15px; color:#334155; line-height:1.7;">
+              Hei!
             </p>
-          </div>
+            <p style="margin:0 0 20px 0; font-family:'Segoe UI',Arial,sans-serif; font-size:15px; color:#334155; line-height:1.7;">
+              <strong style="color:#0f172a;">${senderName}</strong> har invitert deg til å bli med i prosjektet
+              <strong style="color:#0f172a;">${projectName}</strong> som
+              <span style="display:inline-block; background-color:#eff6ff; color:#1d4ed8; font-weight:700; font-size:13px; padding:3px 10px; border-radius:9999px; border:1px solid #bfdbfe; vertical-align:middle;">${roleDescription}</span>.
+            </p>
 
-          <p style="color: #6b7280; font-size: 14px;">
-            Koden utløper om <strong>${expiryDays} dager</strong>.
-          </p>
+            <!-- Invitation code -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0 8px 0;">
+              <tr>
+                <td style="background-color:#f8fafc; border:2px dashed #cbd5e1; border-radius:10px; padding:20px 24px; text-align:center;">
+                  <div style="font-family:'Segoe UI',Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#64748b; margin-bottom:10px;">Din invitasjonskode</div>
+                  <div style="font-family:'Courier New',Courier,monospace; font-size:28px; font-weight:800; letter-spacing:6px; color:#0f172a; line-height:1;">${invitationCode}</div>
+                  <div style="margin-top:12px;">
+                    <span style="display:inline-block; font-family:'Segoe UI',Arial,sans-serif; font-size:12px; font-weight:600; color:#475569; background-color:#e2e8f0; padding:4px 12px; border-radius:9999px;">⏱ Utløper om ${expiryDays} dager</span>
+                  </div>
+                </td>
+              </tr>
+            </table>
 
-          <div style="margin: 30px 0;">
-            <a href="${registrationUrl}"
-               style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500;">
-              Registrer deg nå
-            </a>
-          </div>
+            <p style="margin:4px 0 28px 0; text-align:center; font-family:'Segoe UI',Arial,sans-serif; font-size:12px; color:#94a3b8; line-height:1.5;">
+              Kopier koden og lim den inn når du registrerer deg.
+            </p>
 
-          <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
-            Registreringsside: <a href="${registrationUrl}" style="color: #2563eb;">${registrationUrl}</a>
-          </p>
+            <!-- CTA button (only clickable element) -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr><td align="center" style="padding:4px 0 6px 0;">
+                <a href="${registrationUrl}"
+                   style="display:inline-block; background-color:#2563eb; color:#ffffff; font-family:'Segoe UI',Arial,sans-serif; font-size:15px; font-weight:700; letter-spacing:0.3px; text-decoration:none; padding:14px 36px; border-radius:8px; box-shadow:0 4px 12px rgba(37,99,235,0.35);">
+                  Registrer deg nå &rarr;
+                </a>
+              </td></tr>
+              <tr><td align="center" style="padding-top:10px;">
+                <span style="font-family:'Segoe UI',Arial,sans-serif; font-size:12px; color:#94a3b8;">Knappen tar deg til <strong style="color:#64748b; font-weight:600;">${siteUrl}</strong></span>
+              </td></tr>
+            </table>
 
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+            <!-- Divider -->
+            <hr style="border:none; border-top:1px solid #e2e8f0; margin:32px 0 20px 0;" />
 
-          <p style="color: #9ca3af; font-size: 12px; line-height: 1.5;">
-            Hvis du ikke forventet denne invitasjonen, kan du ignorere denne e-posten.
-          </p>
-        </div>
-      </div>
+            <!-- Help box -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+              <tr>
+                <td style="padding:14px 18px;">
+                  <div style="font-family:'Segoe UI',Arial,sans-serif; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">👀 Slik kommer du i gang</div>
+                  <div style="font-family:'Segoe UI',Arial,sans-serif; font-size:12px; color:#64748b; line-height:1.6;">
+                    1. Klikk på knappen over &nbsp;&middot;&nbsp; 2. Opprett konto med e-posten din &nbsp;&middot;&nbsp; 3. Lim inn invitasjonskoden når du blir spurt.
+                  </div>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:20px 0 0 0; font-family:'Segoe UI',Arial,sans-serif; font-size:11px; color:#94a3b8; line-height:1.6; text-align:center;">
+              Hvis du ikke forventet denne invitasjonen, kan du se bort fra denne e-posten.<br />
+              Trenger du hjelp? Svar på denne e-posten så hjelper vi deg.
+            </p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 8px 0 8px; text-align:center;">
+            <div style="font-family:'Segoe UI',Arial,sans-serif; font-size:11px; color:#94a3b8; line-height:1.6;">
+              Sendt via <strong style="color:#64748b;">Byggeporten</strong> &middot; <a href="${siteUrl}" style="color:#64748b; text-decoration:none;">${siteUrl}</a>
+            </div>
+            <div style="font-family:'Segoe UI',Arial,sans-serif; font-size:11px; color:#cbd5e1; margin-top:4px;">
+              Sikker logistikk for byggeplassen
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
     `;
 
-    const text = `
-Du har fått en invitasjon!
+    const text = `Du har fått en invitasjon! 🎉
 
-${senderName} har invitert deg til å bli med i prosjektet ${projectName} som ${roleDescription}.
+${senderName} har invitert deg til prosjektet ${projectName} som ${roleDescription}.
 
 Din invitasjonskode: ${invitationCode}
 Koden utløper om ${expiryDays} dager.
 
 Registrer deg her: ${registrationUrl}
 
+Slik kommer du i gang: 1) Klikk på lenken over 2) Opprett konto 3) Lim inn koden.
+
 Hvis du ikke forventet denne invitasjonen, kan du ignorere denne e-posten.
+--
+Byggeporten · ${siteUrl}
 `;
 
     const resendResponse = await fetch("https://api.resend.com/emails", {
