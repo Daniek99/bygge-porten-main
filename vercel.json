@@ -16,7 +16,7 @@
           "value": "http"
         }
       ],
-      "destination": "https://veidekkelogistics.com/$1",
+      "destination": "https://byggeporten.no/$1",
       "permanent": true
     }
   ],
